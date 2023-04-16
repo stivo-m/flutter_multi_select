@@ -25,6 +25,7 @@ class MultiSelectFormField extends StatefulWidget {
     this.onReset,
     this.validator,
     this.isEnabled = true,
+    required this.focusNode,
   });
 
   final List<String> options;
@@ -35,6 +36,7 @@ class MultiSelectFormField extends StatefulWidget {
   final String label;
   final String? Function(List<String>?)? validator;
   final bool isEnabled;
+  final FocusNode focusNode;
 
   @override
   State<MultiSelectFormField> createState() => _MultiSelectFormFieldState();
@@ -71,7 +73,6 @@ class _MultiSelectFormFieldState extends State<MultiSelectFormField> {
       setState(() {
         options = widget.options.toSet().toList();
         resetSelections();
-        setInitiallySelectedOptions();
         generateSelectedOptions();
         _key = LabeledGlobalKey(
             '${widget.label}-${Random.secure().nextInt(2000)}');
@@ -96,9 +97,13 @@ class _MultiSelectFormFieldState extends State<MultiSelectFormField> {
   }
 
   void resetSelections() {
+    Map<String, bool> selections = selectedOptions;
+    selectedOptions = <String, bool>{};
+
     for (String option in options.toSet()) {
-      if (selectedOptions.containsKey(option)) {
-        selectedOptions.update(option, (value) => false);
+      if (selections.containsKey(option)) {
+        final bool selectedValue = selections[option] ?? false;
+        selectedOptions.addAll({option: selectedValue});
       } else {
         selectedOptions.addAll({option: false});
       }
@@ -125,10 +130,15 @@ class _MultiSelectFormFieldState extends State<MultiSelectFormField> {
   void updateSelectionStatus(
       Map<String, bool> selection, FormFieldState<List<String>> fieldState) {
     setState(() {
-      selectedOptions.update(
-        selection.keys.first,
-        (value) => selection.values.first,
-      );
+      if (selectedOptions.containsKey(selection.keys)) {
+        selectedOptions.update(
+          selection.keys.first,
+          (value) => selection.values.first,
+        );
+      } else {
+        selectedOptions.addAll(selection);
+      }
+
       generateSelectedOptions();
 
       _overlayEntry.markNeedsBuild();
@@ -138,9 +148,17 @@ class _MultiSelectFormFieldState extends State<MultiSelectFormField> {
   void toggleDropdown(FormFieldState<List<String>> fieldState) {
     if (showDropDown) {
       _overlayEntry.remove();
+      // TODO: Add this to handle focusing
+      setState(() {
+        widget.focusNode.unfocus();
+      });
     } else {
       findButton();
       _overlayEntry = _dropdownOverlay(fieldState);
+      // TODO: Add this to handle focusing
+      setState(() {
+        widget.focusNode.requestFocus();
+      });
       Overlay.of(context).insert(_overlayEntry);
     }
 
@@ -177,67 +195,76 @@ class _MultiSelectFormFieldState extends State<MultiSelectFormField> {
       validator: widget.validator,
       enabled: widget.isEnabled,
       builder: (FormFieldState<List<String>> fieldState) {
-        return InputDecorator(
-          decoration: const InputDecoration.collapsed(hintText: ''),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Container(
-                color: Colors.white,
-                padding: widget.padding ??
-                    const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 10,
-                    ),
-                child: Column(
-                  children: <Widget>[
-                    MultiSelectHeader(
-                      title: widget.label,
-                      onReset: () {
-                        setState(() {
-                          resetSelections();
-                          generateSelectedOptions();
-                          widget.onReset?.call();
-                          _overlayEntry.markNeedsBuild();
-                          fieldState.didChange(generateSelectedOptions());
-                        });
-                      },
-                    ),
-                    // Select dropdown field
-                    MultiSelectDropdownField(
-                      isEnabled: widget.isEnabled,
-                      borderColor: fieldState.hasError
-                          ? Colors.red
-                          : Colors.grey.shade300,
-                      selectedOptions: selectedOptions.entries
-                          .where((MapEntry<String, bool> entry) =>
-                              entry.value == true)
-                          .map((MapEntry<String, bool> checkedEntry) =>
-                              checkedEntry.key)
-                          .toList(),
-                      onRemove: (String value) {
-                        removeSelection(value, fieldState);
-                      },
-                      onDropdownTapped: () => toggleDropdown(fieldState),
-                    ),
-                  ],
-                ),
-              ),
-              Visibility(
-                visible: fieldState.hasError,
-                child: Padding(
+        // TODO: Add this to handle focusing
+        return Focus(
+          focusNode: widget.focusNode,
+          onFocusChange: (bool hasFocus) {
+            if (!hasFocus) {
+              // Close the dropdown view
+              toggleDropdown(fieldState);
+            }
+          },
+          child: InputDecorator(
+            decoration: const InputDecoration.collapsed(hintText: ''),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Container(
                   padding: widget.padding ??
                       const EdgeInsets.symmetric(
-                        horizontal: 20,
+                        horizontal: 0,
+                        vertical: 10,
                       ),
-                  child: Text(
-                    fieldState.errorText ?? '',
-                    style: const TextStyle(color: Colors.red),
+                  child: Column(
+                    children: <Widget>[
+                      MultiSelectHeader(
+                        title: widget.label,
+                        onReset: () {
+                          setState(() {
+                            resetSelections();
+                            generateSelectedOptions();
+                            widget.onReset?.call();
+                            _overlayEntry.markNeedsBuild();
+                            fieldState.didChange(generateSelectedOptions());
+                          });
+                        },
+                      ),
+                      // Select dropdown field
+                      MultiSelectDropdownField(
+                        isEnabled: widget.isEnabled,
+                        borderColor: fieldState.hasError
+                            ? Colors.red
+                            : Colors.grey.shade300,
+                        selectedOptions: selectedOptions.entries
+                            .where((MapEntry<String, bool> entry) =>
+                                entry.value == true)
+                            .map((MapEntry<String, bool> checkedEntry) =>
+                                checkedEntry.key)
+                            .toList(),
+                        onRemove: (String value) {
+                          removeSelection(value, fieldState);
+                        },
+                        onDropdownTapped: () => toggleDropdown(fieldState),
+                      ),
+                    ],
                   ),
                 ),
-              )
-            ],
+                Visibility(
+                  visible: fieldState.hasError,
+                  child: Padding(
+                    padding: widget.padding ??
+                        const EdgeInsets.symmetric(
+                          horizontal: 20,
+                        ),
+                    child: Text(
+                      fieldState.errorText ?? '',
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  ),
+                )
+              ],
+            ),
           ),
         );
       },

@@ -43,12 +43,23 @@ class _MultiSelectPageState extends State<MultiSelectPage> {
   Map<String, dynamic> zonesByState = <String, dynamic>{};
   List<String> allStates = <String>[];
   List<String> availableZones = <String>[];
+  // TODO: ADD THIS LINE HERE
+  List<String> selectedZones = <String>[];
   GlobalKey<FormState> formKey = GlobalKey<FormState>();
+
+  // TODO: Add this to handle focusing
+  late final FocusNode statesFocusNode;
+  late final FocusNode zonesFocusNode;
 
   @override
   void initState() {
     data = jsonData['Data'] as List<Map<String, dynamic>>;
     allStates = getStates();
+
+    // TODO: Add this to handle focusing
+    statesFocusNode = FocusNode();
+    zonesFocusNode = FocusNode();
+
     super.initState();
   }
 
@@ -62,7 +73,9 @@ class _MultiSelectPageState extends State<MultiSelectPage> {
       }
       setState(() {
         zonesByState = _zonesByState;
-        availableZones = getAvailableZones();
+
+  // todo: update this line as follows
+        availableZones = getAvailableZones(states);
       });
     } else {
       setState(() {
@@ -92,80 +105,104 @@ class _MultiSelectPageState extends State<MultiSelectPage> {
     return zones;
   }
 
-  List<String> getAvailableZones() {
-    List<String> zones = zonesByState.values.fold<List<String>>(
-      <String>[],
-      (List<String> previousValue, dynamic zones) =>
-          <String>[...previousValue, ...zones],
-    ).toList();
+// todo: update this function as follows
+  List<String> getAvailableZones(List<String> states) {
+    List<String> zones = [];
+
+    for (String state in states) {
+      List<String> z = zonesByState.entries
+          .where((MapEntry<String, dynamic> entry) => entry.key == state)
+          .map((MapEntry<String, dynamic> e) => e.value)
+          .fold<List<String>>(
+        <String>[],
+        (List<String> previousValue, dynamic zones) =>
+            <String>[...previousValue, ...zones],
+      ).toList();
+
+      zones.addAll(z);
+    }
 
     return zones;
+  }
+
+  // TODO: Add this to handle focusing
+  void handleDropdownFocus() {
+    statesFocusNode.unfocus();
+    zonesFocusNode.unfocus();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: Form(
-          key: formKey,
-          child: Column(
-            children: <Widget>[
-              const SizedBox(height: 50),
-              // Stats selector
-              MultiSelectFormField(
-                isEnabled: true,
-                key: const Key('States'),
-                label: 'State(s)*',
-                options: allStates,
-                validator: (List<String>? values) {
-                  if (values == null || values.isEmpty) {
-                    return 'States are required';
-                  }
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          // TODO: Add this to handle focusing
+          child: GestureDetector(
+            onTap: () {
+              handleDropdownFocus();
+            },
+            child: Form(
+              key: formKey,
+              child: Column(
+                children: <Widget>[
+                  const SizedBox(height: 50),
+                  // Stats selector
+                  MultiSelectFormField(
+                    focusNode: statesFocusNode,
+                    isEnabled: true,
+                    key: const Key('States'),
+                    label: 'State(s)*',
+                    options: allStates,
+                    validator: (List<String>? values) {
+                      if (values == null || values.isEmpty) {
+                        return 'States are required';
+                      }
 
-                  return null;
-                },
-                onChange: (List<String> selectedOptions) {
-                  groupZonesByState(selectedOptions);
-                },
-                onReset: () {
-                  groupZonesByState(<String>[]);
-                },
-              ),
-
-              // Zones selector
-              MultiSelectFormField(
-                key: const Key('Zones'),
-                label: 'Zones(s)*',
-                options: availableZones,
-                onChange: (List<String> selectedOptions) {},
-                onReset: () {},
-                validator: (List<String>? values) {
-                  if (values == null || values.isEmpty) {
-                    return 'Zones are required';
-                  }
-
-                  return null;
-                },
-              ),
-              const SizedBox(height: 20),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: SizedBox(
-                  width: double.maxFinite,
-                  height: 55,
-                  child: ElevatedButton(
-                    style: ButtonStyle(
-                        backgroundColor: MaterialStatePropertyAll(
-                      Colors.green.shade700,
-                    )),
-                    onPressed: () {
-                      formKey.currentState!.validate();
+                      return null;
                     },
-                    child: const Text('Submit'),
+                    onChange: (List<String> selectedOptions) {
+                      groupZonesByState(selectedOptions);
+                    },
+                    onReset: () {
+                      groupZonesByState(<String>[]);
+                    },
                   ),
-                ),
-              )
-            ],
+
+                  // Zones selector
+                  MultiSelectFormField(
+                    focusNode: zonesFocusNode,
+                    key: const Key('Zones'),
+                    label: 'Zones(s)*',
+                    options: availableZones,
+                    onChange: (List<String> selectedOptions) {},
+                    onReset: () {},
+                    validator: (List<String>? values) {
+                      if (values == null || values.isEmpty) {
+                        return 'Zones are required';
+                      }
+
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.maxFinite,
+                    height: 55,
+                    child: ElevatedButton(
+                      style: ButtonStyle(
+                          backgroundColor: MaterialStatePropertyAll(
+                        Colors.green.shade700,
+                      )),
+                      onPressed: () {
+                        formKey.currentState!.validate();
+                      },
+                      child: const Text('Submit'),
+                    ),
+                  )
+                ],
+              ),
+            ),
           ),
         ),
       ),
